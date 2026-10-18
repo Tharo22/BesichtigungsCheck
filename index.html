@@ -195,6 +195,14 @@ table.cmp td.n{font-family:var(--font-mono)}
 .bar h1{letter-spacing:-.01em}
 .empty::before{content:'';display:block;width:60px;height:60px;margin:0 auto 12px;border-radius:15px;background:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22 viewBox=%220 0 64 64%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23fff%22 stop-opacity=%22.16%22/%3E%3Cstop offset=%221%22 stop-color=%22%23000%22 stop-opacity=%22.14%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2264%22 height=%2264%22 rx=%2215%22 fill=%22%230E6B73%22/%3E%3Crect width=%2264%22 height=%2264%22 rx=%2215%22 fill=%22url%28%23g%29%22/%3E%3Cpath d=%22M12 31L32 14l20 17%22 fill=%22none%22 stroke=%22%23fff%22 stroke-width=%225%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M17 28v22h30V28%22 fill=%22none%22 stroke=%22%23fff%22 stroke-width=%225%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M25 38l5 5 10-11%22 fill=%22none%22 stroke=%22%23fff%22 stroke-width=%225%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E") center/cover;box-shadow:0 4px 12px rgba(0,0,0,.18)}
 /*ENDBRAND*/
+/*VIZ*/
+:root{--c1:#2a78d6;--c2:#eb6834;--neutral:#8a857d}
+@media (prefers-color-scheme: dark){:root{--c1:#3987e5;--c2:#d95926;--neutral:#8f8a82}}
+.viz{padding:8px 12px 4px}.viz svg{display:block;width:100%;height:auto;overflow:visible;max-width:340px;margin:0 auto}
+.viz text{font-family:var(--font-body);fill:var(--muted);font-size:11px}.viz .ink{fill:var(--ink)}.viz .nm{font-family:var(--font-mono)}
+.vrow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;padding:8px 14px;border-top:1px solid var(--line);font-size:13.5px}
+.vrow b{font-family:var(--font-mono);font-weight:600}.vrow span.p{font-family:var(--font-mono);color:var(--muted);font-size:12px}
+/*ENDVIZ*/
 </style>
 </head>
 <body>
@@ -564,6 +572,19 @@ function tabFragen(o){
    <h2>Unterlagen anfordern · ${got} von ${DOCS.length} erhalten</h2><div class="card">${DOCS.map(([id,l])=>`<label class="chk"><input type="checkbox" data-doc="${id}" ${o.docs[id]?'checked':''}><span>${esc(l)}</span></label>`).join('')}</div>
    <p class="note">Hake ab, was du bekommen hast. Die Unterlagen entscheiden oft mehr über den Kauf als die Wohnung selbst.</p>`;
 }
+const SHORT={lage:'Lage',geb:'Gebäude',wo:'Wohnung',en:'Energie',ve:'Vermietbar',bj:'Baujahr',eigen:'Eigene'};
+function radar(o){
+  const ax=sectionsFor(o).map(sec=>{ let n=0,ok=0,m=0,u=0; sec.items.forEach(it=>{ const st=o.items[it.id]; if(!st||!st.s) return; n++; if(st.s==='ok') ok++; else if(st.s==='mangel') m++; else u++; }); return {id:sec.id,l:SHORT[sec.id]||sec.t,n,ok,m,u,v:n?ok/n:null}; }).filter(a=>a.n>0);
+  if(ax.length<3) return '';
+  const cx=150,cy=115,R=78,N=ax.length, ang=i=>-Math.PI/2+i*2*Math.PI/N, P=(i,f)=>[cx+R*f*Math.cos(ang(i)),cy+R*f*Math.sin(ang(i))];
+  let g=''; [0.5,1].forEach(f=>{ g+=`<polygon points="${ax.map((_,i)=>P(i,f).map(v=>v.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="var(--line)" stroke-width="${f===1?1.2:.7}"/>`; });
+  ax.forEach((a,i)=>{ const [x,y]=P(i,1); g+=`<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width=".7"/>`; });
+  g+=`<polygon points="${ax.map((a,i)=>P(i,Math.max(0.03,a.v)).map(v=>v.toFixed(1)).join(',')).join(' ')}" fill="var(--c1)" fill-opacity=".18" stroke="var(--c1)" stroke-width="2" stroke-linejoin="round"/>`;
+  ax.forEach((a,i)=>{ const [x,y]=P(i,Math.max(0.03,a.v)); g+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="var(--c1)" stroke="var(--surface)" stroke-width="2"><title>${a.l}: ${a.ok} von ${a.n} in Ordnung</title></circle>`;
+    const [lx,ly]=P(i,1.2), an=Math.abs(lx-cx)<8?'middle':(lx>cx?'start':'end'); g+=`<text x="${lx.toFixed(1)}" y="${(ly+4).toFixed(1)}" text-anchor="${an}" class="ink" style="font-size:11px">${a.l}</text>`; });
+  const rows=ax.map(a=>`<div class="vrow"><span>${esc(a.l)}</span><b>${a.ok} von ${a.n}</b><span class="p">${Math.round(a.v*100)} %</span></div>`).join('');
+  return `<h2>Zustand je Bereich</h2><div class="card"><div class="viz"><svg viewBox="0 0 300 230" role="img" aria-label="Anteil der Punkte in Ordnung je Bereich: ${ax.map(a=>a.l+' '+Math.round(a.v*100)+' Prozent').join(', ')}">${g}</svg></div>${rows}</div><p class="note">Anteil der geprüften Punkte ohne Mangel oder offene Frage. Je weiter außen, desto besser. Bereiche ohne geprüfte Punkte fehlen.</p>`;
+}
 function tabFazit(o){
   const a=ampel(o), s=a.s, alle=s.alle, preis=o.gebot>0?o.gebot:o.kp;
   const seg=[['ja','Interessant'],['vielleicht','Vielleicht'],['nein','Absage']].map(([v,l])=>`<button data-act="fz" data-v="${v}" aria-pressed="${o.fazit===v}">${l}</button>`).join('');
@@ -574,6 +595,7 @@ function tabFazit(o){
    <h2>Zustand</h2><div class="card"><div class="kv"><span>Einschätzung nach Checkliste</span><span>${ampelPill(a)}</span></div>
     <div class="kv"><span>Geprüfte Punkte</span><b>${s.done} von ${s.total}</b></div>
     <div class="kv"><span>Mängel / unklare Punkte</span><b>${s.mangel} / ${s.unklar}</b></div></div>${crit}
+   ${radar(o)}
    <h2>Kosten und Preis</h2><div class="card"><div class="kv"><span>Mängelkosten aus der Checkliste</span><b>${eur(s.cost)}</b></div>
     <div class="fields" style="grid-template-columns:1fr 1fr"><label class="fld">Weitere Kosten (Küche, Reserve)<span class="unit"><input inputmode="decimal" data-f="extra" data-t="num" value="${fmtIn(o.extra)}"><i>€</i></span></label>
      <label class="fld">Mein Gebot<span class="unit"><input inputmode="decimal" data-f="gebot" data-t="num" value="${fmtIn(o.gebot)}"><i>€</i></span></label></div>
